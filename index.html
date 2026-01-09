@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Learning Chatbot</title>
+    <link rel="stylesheet" href="style.css">
+    
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <div class="logo">DS</div>
+                <div class="header-text">
+                    <h1>DSA Learning Chatbot</h1>
+                    <p>Your AI-powered Data Structures & Algorithms instructor</p>
+                </div>
+            </div>
+            <button class="clear-btn" onclick="clearHistory()">Clear History</button>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="welcome-message">
+                <h2>Welcome! 👋</h2>
+                <p>I'm your DSA instructor. Ask me anything about Data Structures and Algorithms!</p>
+                <div class="suggestions">
+                    <div class="suggestion-chip" onclick="sendSuggestion('What is a Linked List?')">What is a Linked
+                        List?</div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Explain Binary Search')">Explain Binary Search
+                    </div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('How does a Stack work?')">How does a Stack
+                        work?</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <input type="text" id="userInput" placeholder="Ask about DSA concepts..."
+                    onkeypress="handleKeyPress(event)" autocomplete="off">
+            </div>
+            <button id="sendBtn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenAI } from "https://esm.run/@google/genai";
+
+        let ai;
+        const API_KEY = "AIz-xxxxxxxxxxxxxxxxxxxxx"; // Replace with your actual API key
+        let conversationHistory = [];
+
+        //Initialise the AI
+        try {
+            ai = new GoogleGenAI({
+                apiKey: API_KEY,
+            });
+        } catch (error) {
+            console.error("Failed to initialize AI:", error);
+        }
+
+        window.sendMessage = async function () {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            if (API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+                addMessage("Please add your Gemini API key in the code!", 'bot');
+                return;
+            }
+
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Add user message to history
+            conversationHistory.push({
+                role: "user",
+                parts: [{ text: message }]
+            });
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+
+            showLoading();
+
+            try {
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash",
+                    contents: conversationHistory,
+                    config: {
+                        systemInstruction: `You are a Data Structure and Algorithm(DSA) instructor. Answer questions which are related to DSA only, for other queries respond by saying ask relevant question. Answer the question in an easy way, make it easier for the user to understand the answer. Provide clear explanations with examples when helpful.`,
+                    },
+                });
+
+                removeLoading();
+                const botResponse = response.text || "Sorry, I couldn't generate a response.";
+                addMessage(botResponse, 'bot');
+
+                // Add bot response to history
+                conversationHistory.push({
+                    role: "model",
+                    parts: [{ text: botResponse }]
+                });
+
+            } catch (error) {
+                removeLoading();
+                addMessage("Sorry, there was an error processing your request. Please check your API key and try again.", 'bot');
+                console.error("Error:", error);
+            }
+
+            sendBtn.disabled = false;
+        }
+
+        window.handleKeyPress = function (event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        window.sendSuggestion = function (text) {
+            document.getElementById('userInput').value = text;
+            sendMessage();
+        }
+
+        window.clearHistory = function () {
+            if (confirm('Are you sure you want to clear the conversation history?')) {
+                conversationHistory = [];
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = `
+                    <div class="welcome-message">
+                        <h2>Welcome! 👋</h2>
+                        <p>I'm your DSA instructor. Ask me anything about Data Structures and Algorithms!</p>
+                        <div class="suggestions">
+                            <div class="suggestion-chip" onclick="sendSuggestion('What is a Linked List?')">What is a Linked List?</div>
+                            <div class="suggestion-chip" onclick="sendSuggestion('Explain Binary Search')">Explain Binary Search</div>
+                            <div class="suggestion-chip" onclick="sendSuggestion('How does a Stack work?')">How does a Stack work?</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function addMessage(text, sender) {
+            const chatContainer = document.getElementById('chatContainer');
+
+            // Remove welcome message if it exists
+            const welcomeMsg = chatContainer.querySelector('.welcome-message');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = formatMessage(text);
+
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function formatMessage(text) {
+            // Format code blocks
+            text = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre><code>$2</code></pre>');
+            // Format inline code
+            text = text.replace(/`([^`]+)`/g, '<code style="background: rgba(120, 119, 198, 0.2); padding: 2px 8px; border-radius: 4px; color: #7dd3fc;">$1</code>');
+            // Format line breaks
+            text = text.replace(/\n/g, '<br>');
+            // Format bold
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            return text;
+        }
+
+        function showLoading() {
+            const chatContainer = document.getElementById('chatContainer');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message bot';
+            loadingDiv.id = 'loadingMessage';
+            loadingDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="loading">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(loadingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function removeLoading() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
+        }
+    </script>
+</body>
+
+</html>
